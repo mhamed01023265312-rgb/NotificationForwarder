@@ -1,4 +1,4 @@
-name: Build & Release APK
+name: Build APK
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
 
 jobs:
   build:
-    name: Build Signed Release APK
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
@@ -36,21 +36,8 @@ jobs:
       - name: Clean build
         run: ./gradlew clean
 
-      - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/notif-forwarder-release.jks
-
-      - name: Build Release APK
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=${{ github.workspace }}/notif-forwarder-release.jks \
-            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-
-      - name: Cleanup Keystore
-        if: always()
-        run: rm -f ${{ github.workspace }}/notif-forwarder-release.jks
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
 
       - name: Rename APK
         run: |
@@ -62,7 +49,7 @@ jobs:
             VERSION="${BRANCH}-${SHA}"
           fi
 
-          APK_SRC="app/build/outputs/apk/release/app-release.apk"
+          APK_SRC="app/build/outputs/apk/debug/app-debug.apk"
           APK_DEST="NotificationForwarder-${VERSION}.apk"
 
           cp "$APK_SRC" "$APK_DEST"
@@ -76,7 +63,7 @@ jobs:
           path: ${{ env.APK_PATH }}
           retention-days: 30
 
-      - name: Create GitHub Release
+      - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
