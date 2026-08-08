@@ -1,9 +1,14 @@
 package com.itsazni.notificationforwarder
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -11,12 +16,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,60 +28,75 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itsazni.notificationforwarder.ui.theme.AppTheme
 import com.itsazni.notificationforwarder.worker.WorkerScheduler
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+// حالات الشخصية البكسلية (الانفعالات والحركات)
+enum class CharacterEmotion { IDLE, WAVING, TALKING, HAPPY, SAD, JUMPING }
+
+class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
+
+    private lateinit var tts: TextToSpeech
+    private var isTtsReady = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // تهيئة المحرك الصوتي (Text-to-Speech)
+        tts = TextToSpeech(this, this)
+
         setContent {
             AppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0F0E17) // خلفية آركيد داكنة
+                    color = Color(0xFF0A0915) // خلفية آركيد ليلاً
                 ) {
-                    PixelAssistantScreen()
+                    PixelVoiceAssistantScreen(
+                        onSpeak = { text -> speakText(text) }
+                    )
                 }
             }
         }
     }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = tts.setLanguage(Locale("ar"))
+            if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                isTtsReady = true
+            }
+        }
+    }
+
+    private fun speakText(text: String) {
+        if (isTtsReady) {
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "BotReplyID")
+        }
+    }
+
+    override fun onDestroy() {
+        if (::tts.isInitialized) {
+            tts.stop()
+            tts.shutdown()
+        }
+        super.onDestroy()
+    }
 }
 
-// نموذج رسائل المساعد الذكي
-data class PixelMessage(
-    val id: Long = System.currentTimeMillis(),
-    val sender: String, // "BOT" or "USER"
-    val text: String,
-    val time: String
-)
-
 @Composable
-fun PixelAssistantScreen() {
+fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
-
     var isPermissionGranted by remember { mutableStateOf(isNotificationListenerEnabled(context)) }
-    var userInput by remember { mutableStateOf("") }
+    var showPermissionDialog by remember { mutableStateOf(!isPermissionGranted) }
 
-    // قائمة رسائل المساعد وقاعدة بيانات المواعيد المتسجلة
-    val messages = remember {
-        mutableStateListOf(
-            PixelMessage(
-                sender = "BOT",
-                text = "أهلاً بك يا بطل! 🤖 أنا مساعدك البكسلي الذكي.. خدمة الإشعارات أصبحت شغالـة حالياً في الخلفية تلقائياً! ⚡\n\nتقدر تسألني عن مواعيدك أو تقول لي يسجل لك نوت جديدة.",
-                time = getCurrentTime()
-            )
-        )
-    }
+    // حالة الشخصية المباشرة ونصوص الحوار الصوتي
+    var currentEmotion by remember { mutableStateOf(CharacterEmotion.WAVING) }
+    var botResponseText by remember { mutableStateOf("أهلاً بك! أنا مساعدك البكسلي.. اضغط على المايك للتحدث معي بصوتك!") }
+    var isListening by remember { mutableStateOf(false) }
 
     val scheduleNotes = remember {
         mutableStateListOf(
@@ -90,233 +106,284 @@ fun PixelAssistantScreen() {
         )
     }
 
-    // التشغيل التلقائي للخدمة بمجرد فتح التطبيق
+    // بدء الخدمة في الخلفية تلقائياً فور الفتح
     LaunchedEffect(Unit) {
         if (isPermissionGranted) {
             WorkerScheduler.enqueueImmediate(context)
             WorkerScheduler.ensurePeriodic(context)
         }
+        // إلقاء التحية الصوتية الأولى
+        onSpeak("أهلاً بك يا بطل! أنا مساعدك البكسلي جاهز لسماعك.")
+    }
+
+    // --- 1. الشاشة المنبثقة للإذن (Dialog) ---
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            containerColor = Color(0xFF1B192E),
+            title = {
+                Text(
+                    text = "🚨 إذن قراءة الإشعارات",
+                    color = Color(0xFF00FF66),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "لتشغيل محول الإشعارات وإرسالها للتليجرام تلقائياً، يحتاج التطبيق إلى إذن الوصول للإشعارات.",
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionDialog = false
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF66)),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("تفعيل الآن", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("لاحقاً", color = Color.Gray)
+                }
+            }
+        )
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // --- 1. هيدر الآركيد والشخصية المباشرة ---
+        // --- الهيدر العلوي ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1F1B24), shape = RoundedCornerShape(4.dp))
-                .border(2.dp, Color(0xFF00FF66), shape = RoundedCornerShape(4.dp))
-                .padding(12.dp),
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // روبوت بكسلي متحرك
-            PixelRobotMascot(
-                modifier = Modifier
-                    .size(54.dp)
-                    .padding(4.dp)
+            Text(
+                text = "PIXEL-BOY AI",
+                color = Color(0xFF00E5FF),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                fontFamily = FontFamily.Monospace
             )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "PIXEL-BOT v1.0",
-                    color = Color(0xFF00FF66),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = if (isPermissionGranted) "● النظام متصل والشغال بالخلفية" else "▲ إذن الإشعارات مفقود!",
-                    color = if (isPermissionGranted) Color(0xFF00E5FF) else Color(0xFFFF0055),
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // --- 2. تنبيه الإذن لو غير مفعل ---
-        if (!isPermissionGranted) {
-            Card(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                    .border(2.dp, Color(0xFFFF0055), RoundedCornerShape(4.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A0813))
-            ) {
-                Row(
-                    modifier = Modifier.padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "نحتاج إذن وصول الإشعارات لتشغيل المحول!",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        modifier = Modifier.weight(1f),
-                        fontFamily = FontFamily.Monospace
+                    .background(
+                        if (isNotificationListenerEnabled(context)) Color(0xFF00FF66) else Color(0xFFFF0055),
+                        CircleShape
                     )
-                    Button(
-                        onClick = {
-                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF0055)),
-                        shape = RoundedCornerShape(2.dp)
-                    ) {
-                        Text("تفعيل الآن", fontSize = 11.sp, color = Color.White)
-                    }
-                }
-            }
+                    .size(10.dp)
+            )
         }
 
-        // --- 3. شاشة المحادثة واستعراض المواعيد ---
-        Surface(
+        // --- 2. المسرح الرئيسي والشخصية البكسلية البشرية المتحركة ---
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .border(2.dp, Color(0xFF00E5FF), RoundedCornerShape(4.dp)),
-            color = Color(0xFF05050A)
+                .padding(vertical = 12.dp)
+                .background(Color(0xFF141226), shape = RoundedCornerShape(8.dp))
+                .border(2.dp, Color(0xFF00E5FF), shape = RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                items(messages, key = { it.id }) { msg ->
-                    PixelMessageBubble(msg)
+                // الشخصية البشرية المبكسلة
+                HumanoidPixelAvatar(
+                    emotion = currentEmotion,
+                    modifier = Modifier.size(180.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // مربع كلام الشخصية
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .border(1.dp, Color(0xFF00FF66), RoundedCornerShape(6.dp)),
+                    color = Color(0xFF0A0915)
+                ) {
+                    Text(
+                        text = botResponseText,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // --- 4. حقل إدخال الآركيد وإرسال الأسئلة ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        // --- 3. منطقة التحكم والتفاعل الصوتي ---
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            OutlinedTextField(
-                value = userInput,
-                onValueChange = { userInput = it },
-                placeholder = {
-                    Text("اسأل المساعد (مثلاً: علينا إيه النهاردة؟)", fontSize = 11.sp, color = Color.Gray)
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .background(Color(0xFF1F1B24)),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00FF66),
-                    unfocusedBorderColor = Color(0xFF00E5FF),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                ),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = {
-                    processUserInput(userInput, messages, scheduleNotes) { userInput = "" }
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(messages.size - 1)
-                    }
-                })
+            Text(
+                text = if (isListening) "🎙️ أسمعك الآن.. اتكلم!" else "اضغط على زر المايك للتحدث",
+                color = if (isListening) Color(0xFF00FF66) else Color.Gray,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            Button(
+            // زر المايك الكبير
+            IconButton(
                 onClick = {
-                    processUserInput(userInput, messages, scheduleNotes) { userInput = "" }
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(messages.size - 1)
+                    startVoiceRecognition(context as Activity) { recognizedText ->
+                        isListening = false
+                        // معالجة الرد الصوتي والانفعال
+                        processVoiceInput(
+                            userInput = recognizedText,
+                            scheduleNotes = scheduleNotes,
+                            onReply = { responseText, emotion ->
+                                botResponseText = responseText
+                                currentEmotion = emotion
+                                onSpeak(responseText)
+                            }
+                        )
                     }
+                    isListening = true
                 },
-                shape = RoundedCornerShape(2.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF66))
+                modifier = Modifier
+                    .size(72.dp)
+                    .background(
+                        color = if (isListening) Color(0xFFFF0055) else Color(0xFF00FF66),
+                        shape = CircleShape
+                    )
             ) {
-                Text("إرسال", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    text = if (isListening) "🛑" else "🎤",
+                    fontSize = 28.sp
+                )
             }
         }
     }
 }
 
-// معالجة أسئلة المستخدم والرد الآلي للمساعد الذكي
-private fun processUserInput(
-    input: String,
-    messages: MutableList<PixelMessage>,
-    scheduleNotes: MutableList<String>,
-    onClear: () -> Unit
-) {
-    if (input.isBlank()) return
-
-    val userText = input.trim()
-    messages.add(PixelMessage(sender = "USER", text = userText, time = getCurrentTime()))
-    onClear()
-
-    // تحليل رد البوت على الأسئلة الكلاسيكية
-    val botReply = when {
-        userText.contains("علينا ايه") || userText.contains("مواعيد") || userText.contains("جدول") || userText.contains("النهاردة") -> {
-            val notesFormatted = scheduleNotes.mapIndexed { i, note -> "${i + 1}. $note" }.joinToString("\n")
-            "📅 مواعيدك المسجلة عندك اليوم:\n$notesFormatted"
-        }
-        userText.contains("اضف") || userText.contains("سجل") || userText.contains("ميعاد") -> {
-            val cleanTask = userText.replace("اضف", "").replace("سجل", "").replace("ميعاد", "").trim()
-            if (cleanTask.isNotEmpty()) {
-                scheduleNotes.add(cleanTask)
-                "✅ تم تسجيل النوت بنجاح: \"$cleanTask\""
-            } else {
-                "💡 اذكر اسم الميعاد أو المهمة بعد كلمة 'سجل'."
-            }
-        }
-        else -> {
-            "👾 فهمتك! أحياناً بكون مشغول بمراقبة وتمرير الإشعارات للتليجرام.. تقدر تسألني: 'علينا إيه النهاردة؟' أو تقول لي 'سجل ميعاد [المهمة]'."
-        }
-    }
-
-    messages.add(PixelMessage(sender = "BOT", text = botReply, time = getCurrentTime()))
-}
-
-// رسم روبوت مبكسل كلاسيكي باستخدام الـ Canvas
+// --- 4. رسم الشخصية البكسلية البشرية بأنيميشن متفاعل ---
 @Composable
-fun PixelRobotMascot(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "robot_anim")
-    val floatY by infiniteTransition.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
+fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "avatar_anim")
+    
+    // أنيميشن الحركة والتنفس للبكسل
+    val bounceY by infiniteTransition.animateFloat(
+        initialValue = if (emotion == CharacterEmotion.JUMPING) -15f else -4f,
+        targetValue = if (emotion == CharacterEmotion.JUMPING) 10f else 4f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),
+            animation = tween(if (emotion == CharacterEmotion.JUMPING) 300 else 700, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "y_float"
+        label = "bounce"
     )
 
-    Canvas(modifier = modifier.offset(y = floatY.dp)) {
-        val pixelSize = size.width / 10f
-        
-        // مصفوفة البكسل للروبوت (10x10)
-        val grid = listOf(
-            "0001111000",
-            "0000110000",
-            "0111111110",
-            "1101111011",
-            "1100110011",
-            "1111111111",
-            "0110000110",
-            "0011111100",
-            "0110110110",
-            "1100000011"
-        )
+    Canvas(modifier = modifier.offset(y = bounceY.dp)) {
+        val pixelSize = size.width / 16f
+
+        // مصفوفة وجه ورأس وتفاصيل الإنسان البكسلي (16x16)
+        val grid = when (emotion) {
+            CharacterEmotion.WAVING -> listOf(
+                "0000011111000000",
+                "0000111111100100", // يد بكسلية تلوّح أعلى اليمين
+                "0001111111110100",
+                "0001100110010100", // العيون
+                "0001111111111000",
+                "0001110011110000", // الفم المبتسم
+                "0000111111100000",
+                "0011111111111000", // الجسم والملابس
+                "0101111111110000",
+                "1001111111110000",
+                "0001111111110000",
+                "0001111111110000",
+                "0000111001110000", // الأرجل
+                "0000111001110000",
+                "0000111001110000",
+                "0001111001111000"  // الأحذية
+            )
+            CharacterEmotion.TALKING, CharacterEmotion.HAPPY, CharacterEmotion.JUMPING -> listOf(
+                "0000011111000000",
+                "0000111111100000",
+                "0001111111110000",
+                "0001100110010000",
+                "0001111111110000",
+                "0001111111110000", // فم مفتوح يتكلم/فرحان
+                "0000111111100000",
+                "0011111111111000",
+                "0101111111110100", // الأيدي مفتوحة
+                "1001111111110010",
+                "0001111111110000",
+                "0001111111110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0001111001111000"
+            )
+            CharacterEmotion.SAD -> listOf(
+                "0000011111000000",
+                "0000111111100000",
+                "0001111111110000",
+                "0001100110010000",
+                "0001110001110000", // عيون حزينة
+                "0001101110110000", // فم مقلوب حزين
+                "0000111111100000",
+                "0000111111100000",
+                "0001111111110000",
+                "0001111111110000",
+                "0001111111110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0001111001111000",
+                "0000000000000000"
+            )
+            else -> listOf( // IDLE
+                "0000011111000000",
+                "0000111111100000",
+                "0001111111110000",
+                "0001100110010000",
+                "0001111111110000",
+                "0001110011110000",
+                "0000111111100000",
+                "0000111111100000",
+                "0001111111110000",
+                "0001111111110000",
+                "0001111111110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0000111001110000",
+                "0001111001111000",
+                "0000000000000000"
+            )
+        }
 
         grid.forEachIndexed { r, row ->
             row.forEachIndexed { c, char ->
                 if (char == '1') {
+                    val color = when {
+                        r < 3 -> Color(0xFF00E5FF) // الشعر/الخوذة بكسل
+                        r in 3..6 -> Color(0xFFFFD54F) // لون الوجه البشري
+                        r in 7..11 -> Color(0xFF00FF66) // الملابس نيون
+                        else -> Color(0xFF37474F) // البنطال والحذاء
+                    }
                     drawRect(
-                        color = Color(0xFF00FF66),
+                        color = color,
                         topLeft = Offset(c * pixelSize, r * pixelSize),
                         size = Size(pixelSize - 1f, pixelSize - 1f)
                     )
@@ -326,58 +393,67 @@ fun PixelRobotMascot(modifier: Modifier = Modifier) {
     }
 }
 
-// تصميم حبابات المحادثة بلغة الآركيد
-@Composable
-fun PixelMessageBubble(msg: PixelMessage) {
-    val isBot = msg.sender == "BOT"
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = if (isBot) Alignment.CenterStart else Alignment.CenterEnd
-    ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 280.dp)
-                .background(
-                    color = if (isBot) Color(0xFF121A24) else Color(0xFF1E2B1A),
-                    shape = RoundedCornerShape(2.dp)
-                )
-                .border(
-                    width = 1.dp,
-                    color = if (isBot) Color(0xFF00E5FF) else Color(0xFF00FF66),
-                    shape = RoundedCornerShape(2.dp)
-                )
-                .padding(8.dp)
-        ) {
-            Text(
-                text = if (isBot) "🤖 PIXEL-BOT" else "👤 أنت",
-                color = if (isBot) Color(0xFF00E5FF) else Color(0xFF00FF66),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = msg.text,
-                color = Color.White,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = msg.time,
-                color = Color.Gray,
-                fontSize = 8.sp,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth(),
-                fontFamily = FontFamily.Monospace
-            )
+// --- 5. معالجة الصوت والرد الذكي ---
+private fun processVoiceInput(
+    userInput: String,
+    scheduleNotes: MutableList<String>,
+    onReply: (String, CharacterEmotion) -> Unit
+) {
+    val text = userInput.lowercase()
+
+    when {
+        text.contains("ازيك") || text.contains("أهلا") || text.contains("سلام") -> {
+            onReply("أهلاً بيك يا غالي! أنا بخير والحمد لله.. جاهز لأي حاجة توئمرني بيها!", CharacterEmotion.WAVING)
+        }
+        text.contains("علينا ايه") || text.contains("مواعيد") || text.contains("جدول") || text.contains("النهاردة") -> {
+            val notesFormatted = scheduleNotes.joinToString("، و ")
+            onReply("عندك النهاردة المواعيد دي: $notesFormatted", CharacterEmotion.TALKING)
+        }
+        text.contains("سجل") || text.contains("ميعاد") || text.contains("اضف") -> {
+            val cleanTask = userInput.replace("سجل", "").replace("ميعاد", "").replace("اضف", "").trim()
+            if (cleanTask.isNotEmpty()) {
+                scheduleNotes.add(cleanTask)
+                onReply("يا سلام! تم تسجيل ميعاد: $cleanTask بنجاح!", CharacterEmotion.JUMPING)
+            } else {
+                onReply("قولي اسم الميعاد إيه بالضبط علشان أسجلهولك.", CharacterEmotion.SAD)
+            }
+        }
+        text.contains("شكرا") || text.contains("تسلم") -> {
+            onReply("العفو يا بطل! أنا في الخدمة دايماً 💚", CharacterEmotion.HAPPY)
+        }
+        else -> {
+            onReply("سمعتك بتقول: $userInput.. تقدر تسألني عن مواعيد النهاردة أو تقولي سجل ميعاد جديد!", CharacterEmotion.TALKING)
         }
     }
 }
 
-private fun getCurrentTime(): String {
-    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+// تشغيل ميزة التعرف على الصوت
+private fun startVoiceRecognition(activity: Activity, onResult: (String) -> Unit) {
+    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
+        putExtra(RecognizerIntent.EXTRA_PROMPT, "تكلم الآن...")
+    }
+
+    val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity)
+    speechRecognizer.setRecognitionListener(object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) {}
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onError(error: Int) {}
+        override fun onResults(results: Bundle?) {
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
+                onResult(matches[0])
+            }
+        }
+        override fun onPartialResults(partialResults: Bundle?) {}
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+    })
+
+    speechRecognizer.startListening(intent)
 }
 
 private fun isNotificationListenerEnabled(context: Context): Boolean {
@@ -385,3 +461,4 @@ private fun isNotificationListenerEnabled(context: Context): Boolean {
     val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
     return flat?.contains(packageName) == true
 }
+
